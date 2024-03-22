@@ -1,0 +1,2 @@
+python KuaiRand_feature_process.py
+python KuaiRand_preprocess.py
