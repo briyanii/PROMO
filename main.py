@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import torch
 import argparse
@@ -22,6 +23,7 @@ def str2bool(s):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True)
+parser.add_argument('--data_dir', required=True)
 parser.add_argument('--train_dir', required=True)
 parser.add_argument('--model_name', default='DSSM_SASRec_PTCR', type=str)
 parser.add_argument('--exp_name', default='base', type=str)
@@ -54,12 +56,15 @@ with open(os.path.join(save_dir, 'args.txt'), 'a') as f:
 f.close()
 
 if __name__ == '__main__':
+    if (not torch.cuda.is_available()) and args.device == 'cuda':
+        sys.exit(3)
+
     # dataset
-    dataset_train = PTCRDataset(data_dir='data/' + args.dataset,
+    dataset_train = PTCRDataset(data_dir=args.data_dir + '/' + args.dataset,
                                 max_length=args.maxlen, mode='train', device=args.device)
-    dataset_valid = PTCRDataset(data_dir='data/' + args.dataset,
+    dataset_valid = PTCRDataset(data_dir=args.data_dir + '/' + args.dataset,
                                 max_length=args.maxlen, mode='val', neg_num=args.num_test_neg_item, device=args.device)
-    dataset_test = PTCRDataset(data_dir='data/' + args.dataset,
+    dataset_test = PTCRDataset(data_dir=args.data_dir + '/' + args.dataset,
                                max_length=args.maxlen, mode='test', neg_num=args.num_test_neg_item, device=args.device)
 
     usernum = dataset_train.user_num

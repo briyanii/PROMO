@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import torch
 import argparse
@@ -20,6 +21,7 @@ def str2bool(s):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True)
+parser.add_argument('--data_dir', required=True)
 parser.add_argument('--train_dir', required=True)
 parser.add_argument('--model_name', default='SASRec', type=str)
 parser.add_argument('--exp_name', default='base', type=str)
@@ -51,12 +53,14 @@ with open(os.path.join(save_dir, 'args.txt'), 'a') as f:
 f.close()
 
 if __name__ == '__main__':
-    # dataset
-    dataset_train = MyDataset(data_dir='data/' + args.dataset,
+    if (not torch.cuda.is_available()) and args.device == 'cuda':
+        sys.exit(3)
+
+    dataset_train = MyDataset(data_dir=args.data_dir + '/' + args.dataset,
                                                     max_length=args.maxlen, mode='train', device=args.device)
-    dataset_valid = MyDataset(data_dir='data/' + args.dataset,
+    dataset_valid = MyDataset(data_dir=args.data_dir + '/' + args.dataset,
                                                     max_length=args.maxlen, mode='val', neg_num=args.num_test_neg_item, device=args.device)
-    dataset_test = MyDataset(data_dir='data/' + args.dataset,
+    dataset_test = MyDataset(data_dir=args.data_dir + '/' + args.dataset,
                                                    max_length=args.maxlen, mode='test', neg_num=args.num_test_neg_item, device=args.device)
 
     usernum = dataset_train.user_num
@@ -75,7 +79,8 @@ if __name__ == '__main__':
     config['user_feature'] = dataset_meta_data[args.dataset]['user_feature']
 
     if args.model_name == "SASRec":
-        model = SASRec(config).to(args.device)
+        model = SASRec(config)
+        model = model.to(args.device)
     else:
         raise ValueError("model name not supported")
     f = open(os.path.join(save_dir, 'log.txt'), 'a')
