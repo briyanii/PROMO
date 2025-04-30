@@ -4,88 +4,102 @@ import argparse
 import numpy as np
 import pandas as pd
 
+def load_kuairand():
+    _dir = 'KuaiRand'
+    interaction_features = 'log_standard_4_08_to_4_21_pure.csv'
+    user_features = "user_features_pure.csv"
+    item_features = 'video_features_basic_pure.csv'
+    item_statistic_features = "video_features_statistic_pure.csv"
+
+    user_features = os.path.join(_dir, user_features)
+    user_features = pd.read_csv(user_features)
+    item_features = os.path.join(_dir, item_features)
+    item_features = pd.read_csv(item_features)
+    item_statistic_features = os.path.join(_dir, item_statistic_features)
+    item_statistic_features = pd.read_csv(item_statistic_features)
+    interaction_features = os.path.join(_dir, interaction_features)
+    interaction_features = pd.read_csv(interaction_features)
+
+    return user_features, item_features, item_statistic_features, interaction_features
+
+def load_movielens100k():
+    _dir = 'MovieLens100k'
+    user_features = 'u.user'
+    item_features = 'u.item'
+    interaction_features = 'u.data'
+    occupations = 'u.occupation'
+
+    occupations = os.path.join(_dir, occupations)
+    with open(occupations, 'r') as fp:
+        occupations = [x.strip() for x in fp.readlines()]
+
+    def decrement_id(x):
+        return x - 1
+
+    interaction_features = os.path.join(_dir, interaction_features)
+    interaction_features = pd.read_csv(interaction_features, sep='\t', header=None)
+    interaction_features.columns = ['user_id', 'item_id', 'rating', 'timestamp']
+    interaction_features['item_id'] = interaction_features['item_id'].apply(decrement_id)
+    interaction_features['user_id'] = interaction_features['user_id'].apply(decrement_id)
+
+    user_features = os.path.join(_dir, user_features)
+    user_features = pd.read_csv(user_features, sep='|', header=None)
+    user_features.columns = [
+        'user_id',
+        'age',
+        'gender', #string
+        'occupation', #string
+        'zip_code', #string
+    ]
+    user_features['user_id'] = user_features['user_id'].apply(decrement_id)
+
+    # transform occupation into onehot
+    for occ in occupations:
+        user_features[occ] = 0
+    for occ in occupations:
+        cond = user_features['occupation'] == occ
+        user_features[cond, occ] = 1
+    # also transform in into ID
+    user_features['occupation'] = user_features['occupation'].apply(lambda x: occupations.index(x))
+
+    item_features = os.path.join(_dir, item_features)
+    encoding = 'iso-8859-1'
+    item_features = pd.read_csv(item_features, sep='|', encoding=encoding, header=None)
+    item_features.columns = [
+        'movie_id',
+        'movie_title', #string
+        'release_date', #string, hasnan
+        'video_release_date', # all nan ?
+        'IMDb_URL', # string, hasnan
+        'unknown',
+        'Action',
+        'Adventure',
+        'Animation',
+        "Children's",
+        "Comedy",
+        "Crime",
+        "Documentary",
+        "Drama",
+        "Fantasy",
+        "Film-Noir",
+        "Horror",
+        "Musical",
+        "Mystery",
+        "Romance",
+        "Sci-Fi",
+        "Thriller",
+        "War",
+        "Western",
+    ]
+    item_features['movie_id'] = item_features['movie_id'].apply(decrement_id)
+
+    return user_features, item_features, interaction_features
+
 def load_data(ds_name):
     if ds_name == 'KuaiRand':
-        _dir = 'KuaiRand'
-        interaction_features = 'log_standard_4_08_to_4_21_pure.csv'
-        user_features = "user_features_pure.csv"
-        item_features = 'video_features_basic_pure.csv'
-        item_statistic_features = "video_features_statistic_pure.csv"
-
-        user_features = os.path.join(_dir, user_features)
-        user_features = pd.read_csv(user_features)
-        item_features = os.path.join(_dir, item_features)
-        item_features = pd.read_csv(item_features)
-        item_statistic_features = os.path.join(_dir, item_statistic_features)
-        item_statistic_features = pd.read_csv(item_statistic_features)
-        interaction_features = os.path.join(_dir, interaction_features)
-        interaction_features = pd.read_csv(interaction_features)
-
-        return user_features, item_features, item_statistic_features, interaction_features
+        return load_kuairand()
     elif ds_name == 'MovieLens100k':
-        _dir = 'MovieLens100k'
-        user_features = 'u.user'
-        item_features = 'u.item'
-        interaction_features = 'u.data'
-        occupations = 'u.occupation'
-
-        occupations = os.path.join(_dir, occupations)
-        with open(occupations, 'r') as fp:
-            occupations = [x.strip() for x in fp.readlines()]
-
-        def decrement_id(x):
-            return x - 1
-
-        interaction_features = os.path.join(_dir, interaction_features)
-        interaction_features = pd.read_csv(interaction_features, sep='\t', header=None)
-        interaction_features.columns = ['user_id', 'item_id', 'rating', 'timestamp']
-        interaction_features['item_id'] = interaction_features['item_id'].apply(decrement_id)
-        interaction_features['user_id'] = interaction_features['user_id'].apply(decrement_id)
-
-        user_features = os.path.join(_dir, user_features)
-        user_features = pd.read_csv(user_features, sep='|', header=None)
-        user_features.columns = [
-            'user_id',
-            'age',
-            'gender', #string
-            'occupation', #string
-            'zip_code', #string
-        ]
-        user_features['occupation'] = user_features['occupation'].apply(lambda x: occupations.index(x))
-        user_features['user_id'] = user_features['user_id'].apply(decrement_id)
-
-        item_features = os.path.join(_dir, item_features)
-        encoding = 'iso-8859-1'
-        item_features = pd.read_csv(item_features, sep='|', encoding=encoding, header=None)
-        item_features.columns = [
-            'movie_id',
-            'movie_title', #string
-            'release_date', #string, hasnan
-            'video_release_date', # all nan ?
-            'IMDb_URL', # string, hasnan
-            'unknown',
-            'Action',
-            'Adventure',
-            'Animation',
-            "Children's",
-            "Comedy",
-            "Crime",
-            "Documentary",
-            "Drama",
-            "Fantasy",
-            "Film-Noir",
-            "Horror",
-            "Musical",
-            "Mystery",
-            "Romance",
-            "Sci-Fi",
-            "Thriller",
-            "War",
-            "Western",
-        ]
-        item_features['movie_id'] = item_features['movie_id'].apply(decrement_id)
-
-        return user_features, item_features, interaction_features
+        return load_movielens100k()
     else:
         raise Exception("Not Implemented")
 
@@ -545,6 +559,27 @@ def preprocess_movielens_user_features(user_features):
         'gender', #
         'occupation',
         #'zip_code', #
+        #'administrator',
+        #'artist',
+        #'doctor',
+        #'educator',
+        #'engineer',
+        #'entertainment',
+        #'executive',
+        #'healthcare',
+        #'homemaker',
+        #'lawyer',
+        #'librarian',
+        #'marketing',
+        #'none',
+        #'other',
+        #'programmer',
+        #'retired',
+        #'salesman',
+        #'scientist',
+        #'student',
+        #'technician',
+        #'writer',
     ])
     user_features['gender'] = user_features['gender'].apply(
         lambda x: 1 if x == 'M' else 0
@@ -614,7 +649,9 @@ if __name__ == '__main__':
     if args.preprocess and args.save:
         item_features.to_csv(os.path.join(args.output_dir, 'item_features.csv'), index=False)
         user_features.to_csv(os.path.join(args.output_dir, 'user_features.csv'), index=False)
+
         meta_data.to_csv(os.path.join(args.output_dir, 'meta_data.csv'), index=False)
+
         train_data.to_csv(os.path.join(args.output_dir, 'train_data.csv'), index=False)
         val_data.to_csv(os.path.join(args.output_dir, 'val_data.csv'), index=False)
         test_data.to_csv(os.path.join(args.output_dir, 'test_data.csv'), index=False)
