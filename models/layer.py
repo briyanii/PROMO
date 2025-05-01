@@ -245,16 +245,20 @@ class LocalActivationUnit(nn.Module):
 
 class FeatureLayer(nn.Module):
     def __init__(self, feature_config, hidden_size):
+        super().__init__()
         self.feature_dims = 0
         self.embedding_dims = 0
         self.embeddings = []
         for entry in feature_config:
             if entry['type'] == 'embedding':
-                self.embeddings.append(Embedding(entry['in_dim'], entry['out_dim']))
-                self.feature_dims += entry['out_dim']
+                in_dim = int(entry['in_dim'])
+                out_dim = int(entry['out_dim'])
+                self.embeddings.append(Embedding(in_dim, out_dim))
+                self.feature_dims += out_dim
                 self.embedding_dims += 1
             else:
                 self.feature_dims += 1
+        self.embeddings = nn.ModuleList(self.embeddings)
         self.dense_layer = FullyConnectedLayer(
             input_size=self.feature_dims,
             hidden_size=[hidden_size],
@@ -268,6 +272,6 @@ class FeatureLayer(nn.Module):
         for i in range(self.embedding_dims):
             embed = self.embeddings[i](features[:, i])
             embedding_inputs.append(embed)
-        features = torch.cat([torch.cat(embed_inputs), features[:, self.embedding_dims:])
+        features = torch.cat([torch.cat(embed_inputs), non_embed_features])
         features = self.dense_layer(features)
         return features
