@@ -90,8 +90,6 @@ if __name__ == '__main__':
     else:
         raise ValueError("model name not supported")
 
-    sys.exit(100)
-
     with open(os.path.join(save_dir, 'args.txt'), 'a') as f:
         f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + '\n')
         f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
