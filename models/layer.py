@@ -242,3 +242,32 @@ class LocalActivationUnit(nn.Module):
         attention_output = self.fc2(attention_output)
 
         return attention_output
+
+class FeatureLayer(nn.Module):
+    def __init__(self, feature_config, hidden_size):
+        self.feature_dims = 0
+        self.embedding_dims = 0
+        self.embeddings = []
+        for entry in feature_config:
+            if entry['type'] == 'embedding':
+                self.embeddings.append(Embedding(entry['in_dim'], entry['out_dim']))
+                self.feature_dims += entry['out_dim']
+                self.embedding_dims += 1
+            else:
+                self.feature_dims += 1
+        self.dense_layer = FullyConnectedLayer(
+            input_size=self.feature_dims,
+            hidden_size=[hidden_size],
+            bias=[True],
+            activation=['sigmoid']
+        )
+
+    def forward(self, features):
+        non_embed_features = features[:, self.embedding_dims:]
+        embedding_inputs = []
+        for i in range(self.embedding_dims):
+            embed = self.embeddings[i](features[:, i])
+            embedding_inputs.append(embed)
+        features = torch.cat([torch.cat(embed_inputs), features[:, self.embedding_dims:])
+        features = self.dense_layer(features)
+        return features

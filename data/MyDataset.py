@@ -27,8 +27,10 @@ class SequentialRecommendationDataset(Dataset):
 
         # 加载用户和物品的特征
         self.user_features = pd.read_csv(data_dir + '/user_features.csv')
+        self.user_features_meta = pd.read_csv(data_dir + '/user_features_meta.csv')
         self.user_features_dim = self.user_features.shape[1]
         self.item_features = pd.read_csv(data_dir + '/item_features.csv')
+        self.item_features_meta = pd.read_csv(data_dir + '/item_features_meta.csv')
         self.item_features_dim = self.item_features.shape[1]
 
         # 加载交互数据
@@ -96,8 +98,10 @@ class MyDataset(Dataset):
 
         # 加载用户和物品的特征
         self.user_features = pd.read_csv(data_dir + '/user_features.csv')
+        self.user_features_meta = pd.read_csv(data_dir + '/user_features_meta.csv')
         self.user_features_dim = self.user_features.shape[1]
         self.item_features = pd.read_csv(data_dir + '/item_features.csv')
+        self.item_features_meta = pd.read_csv(data_dir + '/item_features_meta.csv')
         self.item_features_dim = self.item_features.shape[1]
 
         # 加载交互数据
@@ -196,8 +200,10 @@ class PTCRDataset(Dataset):
 
         # 加载用户和物品的特征
         self.user_features = pd.read_csv(data_dir + '/user_features.csv')
+        self.user_features_meta = pd.read_csv(data_dir + '/user_features_meta.csv')
         self.user_features_dim = self.user_features.shape[1]
         self.item_features = pd.read_csv(data_dir + '/item_features.csv')
+        self.item_features_meta = pd.read_csv(data_dir + '/item_features_meta.csv')
         self.item_features_dim = self.item_features.shape[1]
 
         # 加载交互数据
@@ -331,7 +337,7 @@ class PTCRDataset(Dataset):
             return user_id, history_items, history_items_len, \
                 target_item_id, neg_item_id, \
                 user_features, item_features, neg_item_features, \
-                   item_pos_feedback, item_pos_feedback_len, neg_item_pos_feedbacks, neg_item_pos_feedback_lens
+                item_pos_feedback, item_pos_feedback_len, neg_item_pos_feedbacks, neg_item_pos_feedback_lens
 
         else:
             raise ValueError('mode must be train/val/test')
@@ -352,8 +358,10 @@ class PLATEDataset(Dataset):
 
         # 加载用户和物品的特征
         self.user_features = pd.read_csv(data_dir + '/user_features.csv')
+        self.user_features_meta = pd.read_csv(data_dir + '/user_features_meta.csv')
         self.user_features_dim = self.user_features.shape[1]
         self.item_features = pd.read_csv(data_dir + '/item_features.csv')
+        self.item_features_meta = pd.read_csv(data_dir + '/item_features_meta.csv')
         self.item_features_dim = self.item_features.shape[1]
 
         # 加载交互数据
@@ -443,7 +451,6 @@ class PLATEDataset(Dataset):
                 target_item_id, neg_item_id, \
                 user_features, item_features, neg_item_features,\
                 is_cold_items
-
         else:
             raise ValueError('mode must be train/val/test')
 
@@ -464,8 +471,10 @@ class MetaEmbDataset(Dataset):
 
         # 加载用户和物品的特征
         self.user_features = pd.read_csv(data_dir + '/user_features.csv')
+        self.user_features_meta = pd.read_csv(data_dir + '/user_features_meta.csv')
         self.user_features_dim = self.user_features.shape[1]
         self.item_features = pd.read_csv(data_dir + '/item_features.csv')
+        self.item_features_meta = pd.read_csv(data_dir + '/item_features_meta.csv')
         self.item_features_dim = self.item_features.shape[1]
 
         # 加载交互数据
@@ -555,7 +564,7 @@ class MetaEmbDataset(Dataset):
             cold_item = torch.FloatTensor([0]).to(self.device)
 
             return user_a_ids, user_b_ids, history_items_a, history_items_len_a, history_items_b, history_items_len_b,\
-                   target_item_ids, user_a_features, user_b_features, item_features, label_a, label_b, cold_item
+                target_item_ids, user_a_features, user_b_features, item_features, label_a, label_b, cold_item
 
         elif self.mode == 'val' or self.mode == 'test':
             row = self.data.iloc[idx]

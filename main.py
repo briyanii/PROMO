@@ -85,6 +85,11 @@ if __name__ == '__main__':
     config['item_feature'] = dataset_meta_data[args.dataset]['item_feature']
     config['user_feature'] = dataset_meta_data[args.dataset]['user_feature']
 
+    item_features_meta = dataset_train.item_features_meta.to_dict(orient='records')
+    user_features_meta = dataset_train.user_features_meta.to_dict(orient='records')
+    config['user_features'] = user_features_meta
+    config['item_features'] = item_features_meta
+
     if args.model_name == "DSSM_PTCR":
         model = DSSM_PTCR(config).to(args.device)
     elif args.model_name == "DSSM_SASRec_PTCR":

@@ -67,6 +67,7 @@ if __name__ == '__main__':
     itemnum = dataset_train.item_num
     user_features_dim = dataset_train.user_features_dim
     item_features_dim = dataset_train.item_features_dim
+
     print('number of users: %d' % usernum, 'number of items: %d' % itemnum)
 
     config = {'embed_dim': args.embed_dim,
@@ -77,6 +78,11 @@ if __name__ == '__main__':
     dataset_meta_data = json.load(open(os.path.join('data', 'dataset_meta_data.json'), 'r'))
     config['item_feature'] = dataset_meta_data[args.dataset]['item_feature']
     config['user_feature'] = dataset_meta_data[args.dataset]['user_feature']
+
+    item_features_meta = dataset_train.item_features_meta.to_dict(orient='records')
+    user_features_meta = dataset_train.user_features_meta.to_dict(orient='records')
+    config['user_features'] = user_features_meta
+    config['item_features'] = item_features_meta
 
     if args.model_name == "SASRec":
         model = SASRec(config)

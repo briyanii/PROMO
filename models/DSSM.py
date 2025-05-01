@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.layer import Embedding, FullyConnectedLayer, AttentionSequencePoolingLayer
+from models.layer import Embedding, FullyConnectedLayer, AttentionSequencePoolingLayer, FeatureLayer
 from models.SASRec import SASRec
 
 class DSSM(nn.Module):
@@ -13,14 +13,9 @@ class DSSM(nn.Module):
         dim_config = config['dim_config']
 
         # embedding layers
-        self.item_feature_dense = FullyConnectedLayer(input_size=dim_config['item_feature'],
-                                                      hidden_size=[embed_dim],
-                                                      bias=[True],
-                                                      activation='sigmoid')
-        self.user_feature_dense = FullyConnectedLayer(input_size=dim_config['user_feature'],
-                                                      hidden_size=[embed_dim],
-                                                      bias=[True],
-                                                      activation='sigmoid')
+        self.user_feature_dense = FeatureLayer(config['user_features'], embed_dim)
+        self.item_feature_dense = FeatureLayer(config['item_features'], embed_dim)
+
         self.item_embedding = Embedding(num_embeddings=dim_config['item_id'], embed_dim=embed_dim)
         self.user_embedding = Embedding(num_embeddings=dim_config['user_id'], embed_dim=embed_dim)
 
@@ -207,14 +202,9 @@ class DSSM_SASRec(nn.Module):
         dim_config = config['dim_config']
 
         # embedding layers
-        self.item_feature_dense = FullyConnectedLayer(input_size=dim_config['item_feature'],
-                                                      hidden_size=[embed_dim],
-                                                      bias=[True],
-                                                      activation='sigmoid')
-        self.user_feature_dense = FullyConnectedLayer(input_size=dim_config['user_feature'],
-                                                      hidden_size=[embed_dim],
-                                                      bias=[True],
-                                                      activation='sigmoid')
+        self.user_feature_dense = FeatureLayer(config['user_features'], embed_dim)
+        self.item_feature_dense = FeatureLayer(config['item_features'], embed_dim)
+
         self.item_embedding = Embedding(num_embeddings=dim_config['item_id'], embed_dim=embed_dim)
         self.user_embedding = Embedding(num_embeddings=dim_config['user_id'], embed_dim=embed_dim)
         self.user_sequential_model = SASRec(config)
