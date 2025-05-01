@@ -99,13 +99,13 @@ def preprocess_kuairand_user_features(user_features):
         # binary
         {'name': 'is_live_streamer', 'type': 'categoric', 'count': 2, 'values': [0, 1], 'default': 0},
         {'name': 'is_video_author', 'type': 'categoric', 'count': 2},
-        {'name': 'onehot_feat0', 'type': 'categoric', 'count': 2},
-        {'name': 'onehot_feat12', 'type': 'categoric', 'count': 2},
-        {'name': 'onehot_feat13', 'type': 'categoric', 'count': 2},
-        {'name': 'onehot_feat14', 'type': 'categoric', 'count': 2},
-        {'name': 'onehot_feat15', 'type': 'categoric', 'count': 2},
-        {'name': 'onehot_feat16', 'type': 'categoric', 'count': 2},
-        {'name': 'onehot_feat17', 'type': 'categoric', 'count': 2},
+        {'name': 'onehot_feat0', 'type': 'categoric', 'count': 2, 'default': 0},
+        {'name': 'onehot_feat12', 'type': 'categoric', 'count': 2, 'default': 0},
+        {'name': 'onehot_feat13', 'type': 'categoric', 'count': 2, 'default': 0},
+        {'name': 'onehot_feat14', 'type': 'categoric', 'count': 2, 'default': 0},
+        {'name': 'onehot_feat15', 'type': 'categoric', 'count': 2, 'default': 0},
+        {'name': 'onehot_feat16', 'type': 'categoric', 'count': 2, 'default': 0},
+        {'name': 'onehot_feat17', 'type': 'categoric', 'count': 2, 'default': 0},
         # one_hot
         {'name': 'user_active_degree', 'type': 'categoric', 'count': 4, 'values': ['full_active', 'high_active', 'middle_active', 'low_active'], 'default': 'low_active'},
         {'name': 'onehot_feat6', 'type': 'categoric', 'count': 3},
@@ -114,16 +114,16 @@ def preprocess_kuairand_user_features(user_features):
         {'name': 'fans_user_num_range', 'type': 'categoric', 'count': 7, 'values': ['0', '[1,10)', '[10,100)', '[100,1k)', '[1k,5k)', '[5k,1w)', '1w+'], 'default': '1w+'},
         {'name': 'friend_user_num_range', 'type': 'categoric', 'count': 7, 'values': ['0', '[1,5)', '[5,30)', '[30,60)', '[60,120)', '[120,250)', '250+']},
         {'name': 'register_days_range', 'type': 'categoric', 'count': 7, 'values': ['-30', '31-60', '61-90', '91-180', '181-365', '366-730', '730+'], 'default': '-30'},
-        {'name': 'onehot_feat1', 'type': 'categoric', 'count': 7},
-        {'name': 'onehot_feat2', 'type': 'categoric', 'count': 50},
-        {'name': 'onehot_feat3', 'type': 'categoric', 'count': 1471},
-        {'name': 'onehot_feat4', 'type': 'categoric', 'count': 15},
-        {'name': 'onehot_feat5', 'type': 'categoric', 'count': 34},
-        {'name': 'onehot_feat7', 'type': 'categoric', 'count': 118},
-        {'name': 'onehot_feat8', 'type': 'categoric', 'count': 454},
-        {'name': 'onehot_feat9', 'type': 'categoric', 'count': 7},
-        {'name': 'onehot_feat10', 'type': 'categoric', 'count': 5},
-        {'name': 'onehot_feat11', 'type': 'categoric', 'count': 5},
+        {'name': 'onehot_feat1', 'type': 'categoric', 'count': 7, 'default': 0},
+        {'name': 'onehot_feat2', 'type': 'categoric', 'count': 50, 'default': 0},
+        {'name': 'onehot_feat3', 'type': 'categoric', 'count': 1471, 'default': 0},
+        {'name': 'onehot_feat4', 'type': 'categoric', 'count': 15, 'default': 0},
+        {'name': 'onehot_feat5', 'type': 'categoric', 'count': 34, 'default': 0},
+        {'name': 'onehot_feat7', 'type': 'categoric', 'count': 118, 'default': 0},
+        {'name': 'onehot_feat8', 'type': 'categoric', 'count': 454, 'default': 0},
+        {'name': 'onehot_feat9', 'type': 'categoric', 'count': 7, 'default': 0},
+        {'name': 'onehot_feat10', 'type': 'categoric', 'count': 5, 'default': 0},
+        {'name': 'onehot_feat11', 'type': 'categoric', 'count': 5, 'default': 0},
     ]
     columns = []
     for entry in feat_meta:
@@ -132,6 +132,10 @@ def preprocess_kuairand_user_features(user_features):
         if entry['type'] == 'categoric' and 'default' in entry and 'values' in entry:
             user_features[ft_name] = user_features[ft_name].apply(
                 lambda x: x if x in entry['values'] else entry['default']
+            )
+        elif entry['type'] == 'categoric' and 'default' in entry:
+            user_features[ft_name] = user_features[ft_name].apply(
+                lambda x: int(x) if x >= 0 else entry['default']
             )
         if entry['type'] == 'categoric' and 'values' in entry:
             user_features[ft_name] = user_features[ft_name].apply(
@@ -457,14 +461,14 @@ def preprocess_interaction_data(data, feedback_max_length=10, neg_num=100, hot_i
     item_history_negative_ts = history_ts[('item', 'negative')]
 
     val_data_neg_items, val_data_neg_item_pos_feedbacks = preprocess_interaction_data_part4(
-        data, val_data, user_history_positive, item_history_positive, item_history_positive_ts,
+        data, item_num, val_data, user_history_positive, item_history_positive, item_history_positive_ts,
         seed=0,
         offset=1,
         neg_num=neg_num,
-        feedmax_max_length=feedback_max_length,
+        feedback_max_length=feedback_max_length,
     )
     test_data_neg_items, test_data_neg_item_pos_feedbacks = preprocess_interaction_data_part4(
-        data, val_data, user_history_positive, item_history_positive, item_history_positive_ts,
+        data, item_num, test_data, user_history_positive, item_history_positive, item_history_positive_ts,
         neg_num=neg_num,
         feedback_max_length=feedback_max_length,
     )
@@ -500,7 +504,7 @@ def preprocess_interaction_features(ds_name, data):
         click_positive_threshold = 4
         click_negative_threshold = 2
 
-        _, _, interaction_features = data
+        _, _, _, interaction_features = data
         interaction_features = interaction_features[['user_id', 'item_id', 'timestamp', 'rating']]
         interaction_features.columns = ['user_id', 'item_id', 'ts', 'is_click']
 
@@ -531,7 +535,7 @@ def preprocess_interaction_features(ds_name, data):
         test_data_neg_items,
         test_data_neg_item_pos_feedbacks,
     ) = preprocess_interaction_data(
-        interaction_features, user_num, item_num,
+        interaction_features,
         neg_num=neg_num,
         feedback_max_length=feedback_max_length,
         hot_item_threshold=hot_item_threshold,
@@ -665,6 +669,10 @@ def flatten_features(features, metadata):
         elif ft_type == 'categoric':
             out_dim = min(50, int(entry['count'] ** 0.25))
             embedding_features.append({'name': ft_name, 'type': 'embedding', 'in_dim': entry['count'], 'out_dim': out_dim})
+
+    for entry in onehot_features:
+        ft_name = entry['name']
+        features[ft_name] = features[ft_name].fillna(0).astype(int)
 
     out_meta.extend(embedding_features)
     out_meta.extend([*numeric_features, *binary_features, *onehot_features])
