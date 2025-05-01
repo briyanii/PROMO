@@ -167,7 +167,7 @@ def preprocess_kuairand_item_features(item_features, item_statistic_features):
         {'name': 'video_id', 'type': 'id', 'count': item_features.shape[0]},
         {'name': 'video_type', 'type': 'categoric', 'count': 2, 'values': ['NORMAL', 'AD'], 'default': 'NORMAL'},
         {'name': 'video_duration', 'type': 'categoric', 'count': 4, 'preprocess': video_duration_process},
-        {'name': 'music_type', 'type': 'categoric', 'count': 6, 'values': [9.0, 4.0, 8.0, 7.0, 11.0, 5.0], 'default': 5.0},
+        {'name': 'music_type', 'type': 'categoric', 'count': 6, 'values': [9.0, 4.0, 8.0, 7.0, 11.0, 'OTHER'], 'default': 'OTHER'},
         {'name': 'tag', 'type': 'categoric', 'count': 69, 'preprocess': tag_process},
     ]
     feat_meta_stat = [
@@ -493,14 +493,15 @@ def preprocess_interaction_data(data, feedback_max_length=10, neg_num=100, hot_i
 def preprocess_interaction_features(ds_name, data):
     neg_num = 100
     feedback_max_length = 10
-    hot_user_threshold = 10 #
     if ds_name == 'KuaiRand':
         hot_item_threshold = 50
+        hot_user_threshold = 10
         _, _, _, interaction_features = data
         interaction_features = interaction_features[['user_id', 'video_id', 'time_ms', 'is_click']]
         interaction_features.columns = ['user_id', 'item_id', 'ts', 'is_click']
     elif ds_name == 'MovieLens100k':
         hot_item_threshold = 20
+        hot_user_threshold = 10
         click_positive_threshold = 4
         click_negative_threshold = 2
 
@@ -664,15 +665,12 @@ def flatten_features(features, metadata):
                 new_ft_name = '{}_onehot{}'.format(ft_name, i)
                 onehot_features.append({'name': new_ft_name, 'type': 'onehot'})
                 features.loc[features[ft_name] == i, new_ft_name] = 1
+                features[ft_name] = features[ft_name].fillna(0).astype(int)
         elif ft_type == 'numeric':
             numeric_features.append({'name': ft_name, 'type': 'numeric'})
         elif ft_type == 'categoric':
             out_dim = min(50, int(entry['count'] ** 0.25))
             embedding_features.append({'name': ft_name, 'type': 'embedding', 'in_dim': entry['count'], 'out_dim': out_dim})
-
-    for entry in onehot_features:
-        ft_name = entry['name']
-        features[ft_name] = features[ft_name].fillna(0).astype(int)
 
     out_meta.extend(embedding_features)
     out_meta.extend([*numeric_features, *binary_features, *onehot_features])
