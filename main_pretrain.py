@@ -46,10 +46,6 @@ if not os.path.isdir(args.dataset + '_' + args.train_dir):
     os.makedirs(args.dataset + '_' + args.train_dir)
 if not os.path.isdir(save_dir):
     os.makedirs(save_dir)
-with open(os.path.join(save_dir, 'args.txt'), 'a') as f:
-    f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + '\n')
-    f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
-f.close()
 
 if __name__ == '__main__':
     if (not torch.cuda.is_available()) and args.device == 'cuda':
@@ -86,11 +82,21 @@ if __name__ == '__main__':
     if args.model_name == "DSSM":
         model = DSSM(config)
         model = model.to(args.device)
+        print(model)
     elif args.model_name == "DSSM_SASRec":
         model = DSSM_SASRec(config)
         model = model.to(args.device)
+        print(model)
     else:
         raise ValueError("model name not supported")
+
+    sys.exit(100)
+
+    with open(os.path.join(save_dir, 'args.txt'), 'a') as f:
+        f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + '\n')
+        f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
+        f.write('\n')
+
     f = open(os.path.join(save_dir, 'log.txt'), 'a')
     f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ' model: ' + args.model_name + '\n')
 
