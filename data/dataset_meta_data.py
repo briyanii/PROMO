@@ -1,8 +1,9 @@
+import copy
 import json
 
 meta_data = {}
 
-MovieLens100k_mata_data = {"user_num": 943,
+MovieLens100k_meta_data = {"user_num": 943,
                            "item_num": 1682,
                            "user_feature": {
                                "dim": 23,
@@ -15,46 +16,26 @@ MovieLens100k_mata_data = {"user_num": 943,
                                "cate_one_hot_feat_idx": [
                                     (2, 21) # occupation
                                 ] # 2-21 occupation: one hot
-                               # 类别特征：id类是(idx, cate_num)，one hot类是(start_idx, end_idx)
+                               # 类别特征：id类是(idx, cate_num
+                               # one hot类是(start_idx, count)
                             },
                             "item_feature":{
-                                "dim": 18,
+                                "dim": 19,
                                 "nume_feat_idx": [],
                                 "cate_id_feat_idx": [],
                                 "cate_one_hot_feat_idx": [
-                                    (0, 17) # genre
-                                ] # 0-17 genre: one hot / multi hot
+                                    (0, 19) # genre
+                                ] # 0-18 genre: one hot / multi hot
                             }
                            }
-meta_data['MovieLens100k'] = MovieLens100k_mata_data
+meta_data['MovieLens100k'] = MovieLens100k_meta_data
 
-MovieLens1m_mata_data = {"user_num": 6040,
-                         "item_num": 3952,
-                         "user_feature": {
-                               "dim": 23,
-                               "nume_feat_idx": [
-                                    0
-                                ], # 0 age:0~1
-                               "cate_id_feat_idx": [
-                                    (1, 2) # gender
-                                ],
-                               "cate_one_hot_feat_idx": [
-                                    (2, 21) # occupation
-                                ]
-                               # 类别特征：id类是(idx, cate_num)，one hot类是(start_idx, end_idx
-                         },
-                         "item_feature":{
-                            "dim": 18,
-                            "nume_feat_idx": [],
-                            "cate_id_feat_idx": [],
-                            "cate_one_hot_feat_idx": [
-                                (0, 17) # genre
-                            ]
-                         }
-                        }
-meta_data['MovieLens1m'] = MovieLens1m_mata_data
+MovieLens1m_meta_data = copy.deepcopy(MovieLens100k_meta_data)
+MovieLens1m_meta_data['user_num'] = 6040
+MovieLens1m_meta_data['item_num'] = 3952
+meta_data['MovieLens1m'] = MovieLens1m_meta_data
 
-KuaiRand_mata_data = {"user_num": 27285,
+KuaiRand_meta_data = {"user_num": 27285,
                          "item_num": 7583,
                          "user_feature": {
                                "dim": 25,
@@ -70,17 +51,17 @@ KuaiRand_mata_data = {"user_num": 27285,
                                     (6, 7), # register_days_range
                                     (7, 2), # onehot_feat0
                                     (8, 7), # onehot_feat1
-                                    (9, 50)
+                                    (9, 50),
                                     (10, 1471),
                                     (11, 15),
                                     (12, 34),
-                                    (13, 3)
+                                    (13, 3),
                                     (14, 118),
                                     (15, 454),
                                     (16, 7),
                                     (17, 5),
                                     (18, 5),
-                                    (19, 2)
+                                    (19, 2),
                                     (20, 2),
                                     (21, 2),
                                     (22, 2),
@@ -88,7 +69,7 @@ KuaiRand_mata_data = {"user_num": 27285,
                                     (24, 2) # onehot_feat17
                                 ], #
                                "cate_one_hot_feat_idx": []
-                               # 类别特征：id类是(idx, cate_num)，one hot类是(start_idx, end_idx)
+                               # 类别特征：id类是(idx, cate_num)，one hot类是(start_idx, count)
                          },
                          "item_feature":{
                             "dim": 55,
@@ -154,16 +135,16 @@ KuaiRand_mata_data = {"user_num": 27285,
                             "cate_one_hot_feat_idx": []
                          }
                         }
-meta_data['KuaiRand'] = KuaiRand_mata_data
+meta_data['KuaiRand'] = KuaiRand_meta_data
 
-Tmall_mata_data = {"user_num": 52797,
+Tmall_meta_data = {"user_num": 52797,
                          "item_num": 22955,
                          "user_feature": {
                                "dim": 2,
                                "nume_feat_idx": [],
                                "cate_id_feat_idx": [(0, 10), (1, 4)], #
                                "cate_one_hot_feat_idx": []
-                               # 类别特征：id类是(idx, cate_num)，one hot类是(start_idx, end_idx)
+                               # 类别特征：id类是(idx, cate_num)，one hot类是(start_idx, count)
                          },
                          "item_feature":{
                             "dim": 3,
@@ -172,7 +153,7 @@ Tmall_mata_data = {"user_num": 52797,
                             "cate_one_hot_feat_idx": []
                          }
                         }
-meta_data['Tmall'] = Tmall_mata_data
+meta_data['Tmall'] = Tmall_meta_data
 
 json.dump(meta_data, open('dataset_meta_data.json', 'w'), indent=4)
 
