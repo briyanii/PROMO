@@ -76,9 +76,10 @@ if __name__ == '__main__':
     config['user_feature'] = dataset_meta_data[args.dataset]['user_feature']
 
     item_features_meta = dataset_train.item_features_meta.to_dict(orient='records')
+    config['item_features'] = item_features_meta
+
     user_features_meta = dataset_train.user_features_meta.to_dict(orient='records')
     config['user_features'] = user_features_meta
-    config['item_features'] = item_features_meta
 
     if args.model_name == "SASRec":
         model = SASRec(config)
@@ -140,8 +141,7 @@ if __name__ == '__main__':
         train_loop = tqdm(dataloader, desc="Training Progress")
         for data in train_loop:
             step += 1
-            user_id, history_items, history_items_len, target_item_id, \
-                user_features, item_features, label, cold_item = data
+            user_id, history_items, history_items_len, target_item_id, user_features, item_features, label, cold_item = data
 
             logits = model(user_id, target_item_id, history_items, history_items_len, user_features, item_features)
             if args.model_name == "CB2CF":
