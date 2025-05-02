@@ -138,10 +138,14 @@ class MyDataset(Dataset):
         if self.mode == 'train':
             # 转化成tensor
             user_id = torch.LongTensor([user_id]).to(self.device)
-            history_items = torch.LongTensor(raw_history_items + [0] * (self.max_length - len(raw_history_items))).to(
-                self.device)
+            history_items = torch.LongTensor(
+                raw_history_items
+                + [0] * (self.max_length - len(raw_history_items))
+            ).to(self.device)
             history_items_len = torch.LongTensor(
-                [1] * len(raw_history_items) + [0] * (self.max_length - len(raw_history_items))).to(self.device)
+                [1] * len(raw_history_items)
+                + [0] * (self.max_length - len(raw_history_items))
+            ).to(self.device)
             target_item_id = torch.LongTensor([target_item_id]).to(self.device)
             user_features = torch.FloatTensor(user_features.values).to(self.device)
             item_features = torch.FloatTensor(item_features.values).to(self.device)
@@ -152,23 +156,19 @@ class MyDataset(Dataset):
                 user_features, item_features, label, cold_item
 
         elif self.mode == 'val' or self.mode == 'test':
-            # neg_item_ids = []
-            # if self.mode == 'val':
-            #     total_history_items = self.user_history_positive[user_id][:-1]
-            # else:
-            #     total_history_items = self.user_history_positive[user_id]
-            # for _ in range(self.neg_num):
-            #     neg_item_id = random_neq(0, self.item_num, set(total_history_items + neg_item_ids))
-            #     neg_item_ids.append(neg_item_id)
             neg_item_ids = self.data_neg_items[idx]
             neg_item_features = self.item_features.iloc[neg_item_ids]
 
             # 转化成tensor
             user_id = torch.LongTensor([user_id]).to(self.device)
-            history_items = torch.LongTensor(raw_history_items + [0] * (self.max_length - len(raw_history_items))).to(
-                self.device)
+            history_items = torch.LongTensor(
+                raw_history_items
+                + [0] * (self.max_length - len(raw_history_items))
+            ).to(self.device)
             history_items_len = torch.LongTensor(
-                [1] * len(raw_history_items) + [0] * (self.max_length - len(raw_history_items))).to(self.device)
+                [1] * len(raw_history_items)
+                + [0] * (self.max_length - len(raw_history_items))
+            ).to(self.device)
             target_item_id = torch.LongTensor([target_item_id]).to(self.device)
             neg_item_id = torch.LongTensor(neg_item_ids).to(self.device)
             user_features = torch.FloatTensor(user_features.values).to(self.device)
@@ -228,10 +228,13 @@ class PTCRDataset(Dataset):
                 for j in range(self.neg_num):
                     raw_neg_item_pos_feedback = raw_data_neg_item_pos_feedbacks[i][j]
                     neg_item_pos_feedback = torch.LongTensor(
-                        raw_neg_item_pos_feedback + [0] * (self.feedback_max_length - len(raw_neg_item_pos_feedback)))
+                        raw_neg_item_pos_feedback 
+                        + [0] * (self.feedback_max_length - len(raw_neg_item_pos_feedback))
+                    )
                     neg_item_pos_feedback_len = torch.LongTensor(
-                        [1] * len(raw_neg_item_pos_feedback) + [0] * (
-                                    self.feedback_max_length - len(raw_neg_item_pos_feedback)))
+                        [1] * len(raw_neg_item_pos_feedback) 
+                        + [0] * (self.feedback_max_length - len(raw_neg_item_pos_feedback))
+                    )
                     neg_item_pos_feedbacks.append(neg_item_pos_feedback)
                     neg_item_pos_feedback_lens.append(neg_item_pos_feedback_len)
                 self.data_neg_item_pos_feedbacks.append(neg_item_pos_feedbacks)
@@ -248,89 +251,78 @@ class PTCRDataset(Dataset):
         positive_behavior_offset = int(row['positive_behavior_offset'])
         item_positive_behavior_offset = int(row['item_positive_behavior_offset'])
         item_negative_behavior_offset = int(row['item_negative_behavior_offset'])
+
         label = row['label']
         cold_item = row['cold_item']
-        raw_history_items = self.user_history_positive[user_id][
-                        max(0, positive_behavior_offset + 1 - self.max_length):positive_behavior_offset + 1]
+        start_idx = max(0, positive_behavior_offset + 1 - self.max_length)
+        end_idx = positive_behavior_offset + 1
+        raw_history_items = self.user_history_positive[user_id][start_idx:end_idx]
         user_features = self.user_features.iloc[user_id]
         item_features = self.item_features.iloc[target_item_id]
 
+        user_id = torch.LongTensor([user_id]).to(self.device)
+        history_items = torch.LongTensor(
+            raw_history_items 
+            + [0] * (self.max_length - len(raw_history_items))
+        ).to(self.device)
+        history_items_len = torch.LongTensor(
+            [1] * len(raw_history_items) 
+            + [0] * (self.max_length - len(raw_history_items))
+        ).to(self.device)
+
+        start_idx = max(0, item_positive_behavior_offset + 1 - self.feedback_max_length)
+        end_idx = item_positive_behavior_offset + 1
+        raw_item_pos_feedback = self.item_history_positive[target_item_id][start_idx:end_idx]
+
+        start_idx = max(0, item_negative_behavior_offset + 1 - self.feedback_max_length)
+        end_idx = item_negative_behavior_offset + 1
+        raw_item_neg_feedback = self.item_history_negative[target_item_id][start_idx:end_idx]
+
+        target_item_id = torch.LongTensor([target_item_id]).to(self.device)
+        user_features = torch.FloatTensor(user_features.values).to(self.device)
+        item_features = torch.FloatTensor(item_features.values).to(self.device)
+
+        item_pos_feedback = torch.LongTensor(
+            raw_item_pos_feedback 
+            + [0] * (self.feedback_max_length - len(raw_item_pos_feedback))
+        ).to(self.device)
+        item_pos_feedback_len = torch.LongTensor(
+            [1] * len(raw_item_pos_feedback) 
+            + [0] * (self.feedback_max_length - len(raw_item_pos_feedback))
+        ).to(self.device)
+
         if self.mode == 'train':
             # 转化成tensor
-            user_id = torch.LongTensor([user_id]).to(self.device)
-            history_items = torch.LongTensor(raw_history_items + [0] * (self.max_length - len(raw_history_items))).to(
-                self.device)
-            history_items_len = torch.LongTensor(
-                [1] * len(raw_history_items) + [0] * (self.max_length - len(raw_history_items))).to(self.device)
-
-            raw_item_pos_feedback = self.item_history_positive[target_item_id][max(0, item_positive_behavior_offset + 1 -
-                                                                      self.feedback_max_length):item_positive_behavior_offset + 1]
-            raw_item_neg_feedback = self.item_history_negative[target_item_id][max(0, item_negative_behavior_offset + 1 -
-                                                                      self.feedback_max_length):item_negative_behavior_offset + 1]
-
-            target_item_id = torch.LongTensor([target_item_id]).to(self.device)
-            user_features = torch.FloatTensor(user_features.values).to(self.device)
-            item_features = torch.FloatTensor(item_features.values).to(self.device)
             label = torch.FloatTensor([label]).to(self.device)
             cold_item = torch.FloatTensor([cold_item]).to(self.device)
 
-            item_pos_feedback = torch.LongTensor(raw_item_pos_feedback + [0] * (self.feedback_max_length - len(raw_item_pos_feedback))).to(self.device)
-            item_pos_feedback_len = torch.LongTensor([1] * len(raw_item_pos_feedback) + [0] * (self.feedback_max_length - len(raw_item_pos_feedback))).to(self.device)
-            item_neg_feedback = torch.LongTensor(raw_item_neg_feedback + [0] * (self.feedback_max_length - len(raw_item_neg_feedback))).to(self.device)
-            item_neg_feedback_len = torch.LongTensor([1] * len(raw_item_neg_feedback) + [0] * (self.feedback_max_length - len(raw_item_neg_feedback))).to(self.device)
+            item_neg_feedback = torch.LongTensor(
+                raw_item_neg_feedback 
+                + [0] * (self.feedback_max_length - len(raw_item_neg_feedback))
+            ).to(self.device)
+            item_neg_feedback_len = torch.LongTensor(
+                [1] * len(raw_item_neg_feedback) 
+                + [0] * (self.feedback_max_length - len(raw_item_neg_feedback))
+            ).to(self.device)
 
             return user_id, history_items, history_items_len, target_item_id,\
                 user_features, item_features, label, cold_item, \
                 item_pos_feedback, item_pos_feedback_len, item_neg_feedback, item_neg_feedback_len
 
         elif self.mode == 'val' or self.mode == 'test':
-            raw_item_pos_feedback = self.item_history_positive[target_item_id][
-                                    max(0, item_positive_behavior_offset + 1 -
-                                        self.feedback_max_length):item_positive_behavior_offset + 1]
-            item_pos_feedback = torch.LongTensor(
-                raw_item_pos_feedback + [0] * (self.feedback_max_length - len(raw_item_pos_feedback))).to(self.device)
-            item_pos_feedback_len = torch.LongTensor(
-                [1] * len(raw_item_pos_feedback) + [0] * (self.feedback_max_length - len(raw_item_pos_feedback))).to(
-                self.device)
-
-            # neg_item_ids = []
-            # neg_item_pos_feedbacks = []
-            # neg_item_pos_feedback_lens = []
-            # if self.mode == 'val':
-            #     total_history_items = self.user_history_positive[user_id][:-1]
-            # else:
-            #     total_history_items = self.user_history_positive[user_id]
-            # for _ in range(self.neg_num):
-            #     neg_item_id = random_neq(0, self.item_num, set(total_history_items + neg_item_ids))
-            #     raw_neg_item_pos_feedback = self.item_history_positive[neg_item_id][-self.feedback_max_length:]
-            #     neg_item_pos_feedback = torch.LongTensor(
-            #         raw_neg_item_pos_feedback + [0] * (self.feedback_max_length - len(raw_neg_item_pos_feedback)))
-            #     neg_item_pos_feedback_len = torch.LongTensor(
-            #         [1] * len(raw_neg_item_pos_feedback) + [0] * (self.feedback_max_length - len(raw_neg_item_pos_feedback)))
-            #     neg_item_ids.append(neg_item_id)
-            #     neg_item_pos_feedbacks.append(neg_item_pos_feedback)
-            #     neg_item_pos_feedback_lens.append(neg_item_pos_feedback_len)
-
             neg_item_ids = self.data_neg_items[idx]
             neg_item_pos_feedbacks = self.data_neg_item_pos_feedbacks[idx]
             neg_item_pos_feedback_lens = self.data_neg_item_pos_feedback_lens[idx]
 
             neg_item_features = self.item_features.iloc[neg_item_ids]
             neg_item_pos_feedbacks = torch.stack(neg_item_pos_feedbacks, dim=0).to(
-                self.device) # [neg_num, feedback_max_length]
+                self.device
+            ) # [neg_num, feedback_max_length]
             neg_item_pos_feedback_lens = torch.stack(neg_item_pos_feedback_lens, dim=0).to(
-                self.device) # [neg_num, feedback_max_length]
+                self.device
+            ) # [neg_num, feedback_max_length]
 
-            # 转化成tensor
-            user_id = torch.LongTensor([user_id]).to(self.device)
-            history_items = torch.LongTensor(raw_history_items + [0] * (self.max_length - len(raw_history_items))).to(
-                self.device)
-            history_items_len = torch.LongTensor(
-                [1] * len(raw_history_items) + [0] * (self.max_length - len(raw_history_items))).to(self.device)
-            target_item_id = torch.LongTensor([target_item_id]).to(self.device)
             neg_item_id = torch.LongTensor(neg_item_ids).to(self.device)
-            user_features = torch.FloatTensor(user_features.values).to(self.device)
-            item_features = torch.FloatTensor(item_features.values).to(self.device)
             neg_item_features = torch.FloatTensor(neg_item_features.values).to(self.device)
 
             # 返回样本
