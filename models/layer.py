@@ -270,7 +270,7 @@ class FeatureLayer(nn.Module):
         non_embed_features = features[:, self.embedding_dims:]
         embedding_inputs = []
         for i in range(self.embedding_dims):
-            embed = self.embeddings[i](features[:, i])
+            embed = self.embeddings[i](features[:, i].long())
             embedding_inputs.append(embed)
         features = torch.cat([torch.cat(embed_inputs), non_embed_features])
         features = self.dense_layer(features)
