@@ -21,6 +21,9 @@ def load_kuairand():
 
     return user_features, item_features, item_statistic_features, interaction_features
 
+def decrement_id(x):
+    return x - 1
+
 def load_movielens100k():
     _dir = 'MovieLens100k'
     user_features = 'u.user'
@@ -31,9 +34,6 @@ def load_movielens100k():
     occupations = os.path.join(_dir, occupations)
     with open(occupations, 'r') as fp:
         occupations = [x.strip() for x in fp.readlines()]
-
-    def decrement_id(x):
-        return x - 1
 
     interaction_features = os.path.join(_dir, interaction_features)
     interaction_features = pd.read_csv(interaction_features, sep='\t', header=None)
@@ -51,6 +51,9 @@ def load_movielens100k():
         'zip_code', #string
     ]
     user_features['user_id'] = user_features['user_id'].apply(decrement_id)
+    user_features['occupation'] = user_features['occupation'].apply(
+        lambda x: occupations.index(x)
+    )
 
     item_features = os.path.join(_dir, item_features)
     encoding = 'iso-8859-1'
@@ -83,13 +86,85 @@ def load_movielens100k():
     ]
     item_features['movie_id'] = item_features['movie_id'].apply(decrement_id)
 
-    return user_features, occupations, item_features, interaction_features
+    return user_features, item_features, interaction_features
+
+def load_movielens1m():
+    _dir = 'MovieLens1m'
+    user_features = os.path.join(_dir, 'users.dat')
+    user_features = pd.read_csv(user_features, sep='::', header=None)
+    user_features.columns = [
+        'user_id',
+        'gender',
+        'age',
+        'occupation',
+        'zipcode',
+    ]
+    user_features['user_id'] = user_features['user_id'].apply(decrement_id)
+
+    item_features = os.path.join(_dir, 'movies.dat')
+    encoding = 'iso-8859-1'
+    item_features = pd.read_csv(item_features, sep='::', header=None, encoding=encoding)
+    item_features.columns = [
+        'movie_id',
+        'title',
+        'genres',
+    ]
+    item_features['movie_id'] = item_features['movie_id'].apply(decrement_id)
+
+    genres = [
+        "Action",
+        "Adventure",
+        "Animation",
+        "Children's",
+        "Comedy",
+        "Crime",
+        "Documentary",
+        "Drama",
+        "Fantasy",
+        "Film-Noir",
+        "Horror",
+        "Musical",
+        "Mystery",
+        "Romance",
+        "Sci-Fi",
+        "Thriller",
+        "War",
+        "Western",
+    ]
+
+    def process_genre(x):
+        ft = [0] * (len(genres) + 1)
+        for g in x.split('|'):
+            idx = genres.index(g) + 1
+            ft[idx] = 1
+        return ft
+
+    genre_multihot = item_features['genres'].apply(process_genre)
+    genre_multihot = np.vstack(genre_multihot.values)
+    genres = ['unknown'] + genres
+    item_features[genres] = genre_multihot
+    item_features[genres]
+
+    interaction_features = os.path.join(_dir, 'ratings.dat')
+    interaction_features = pd.read_csv(interaction_features, sep='::', header=None)
+    interaction_features.columns = [
+        'user_id',
+        'item_id',
+        'rating',
+        'timestamp'
+    ]
+    interaction_features['user_id'] = interaction_features['user_id'].apply(decrement_id)
+    interaction_features['item_id'] = interaction_features['item_id'].apply(decrement_id)
+
+    return user_features, item_features, interaction_features
 
 def load_data(ds_name):
     if ds_name == 'KuaiRand':
         return load_kuairand()
     elif ds_name == 'MovieLens100k':
         return load_movielens100k()
+    elif ds_name == 'MovieLens1m':
+        return load_movielens1m()
     else:
         raise Exception("Not Implemented")
 
@@ -366,21 +441,20 @@ def preprocess_interaction_data_part2(data, data_positive, data_negative, cold_i
 
     return train_data, val_data, test_data
 
-def preprocess_interaction_data_part3(data, user_num, item_num, data_positive, data_negative):
+def preprocess_interaction_data_part3(user_num, item_num, data_positive, data_negative):
     history = {}
     history_ts = {}
-    for pos_neg, data in zip(
-        ['positive', 'negative'],
-        [data_positive, data_negative]
-    ):
-        for val, other, val_num in [
-            ('user', 'item', user_num),
-            ('item', 'user', item_num),
-        ]:
+    for val, other, val_num in [
+        ('user', 'item', user_num),
+        ('item', 'user', item_num),
+    ]:
+        for pos_neg in ['positive', 'negative']:
             val_id = "{}_id".format(val)
             oth_id = "{}_id".format(other)
-
-            data.sort_values(by=[val_id, 'ts'], ascending=[True, True])
+            if pos_neg == 'positive':
+                data = data_positive.sort_values(by=[val_id, 'ts'], ascending=[True, True])
+            else:
+                data = data_negative.sort_values(by=[val_id, 'ts'], ascending=[True, True])
             val_history = data.groupby(val_id)[oth_id].apply(list).to_dict()
             val_history_ts = data.groupby(val_id)['ts'].apply(list).to_dict()
             for i in range(val_num):
@@ -392,9 +466,7 @@ def preprocess_interaction_data_part3(data, user_num, item_num, data_positive, d
 
     return history, history_ts
 
-def preprocess_interaction_data_part4(data, item_num, split_data, user_history_positive, item_history_positive, item_history_positive_ts, seed=None, offset=0, neg_num=100, feedback_max_length=10):
-    if seed:
-        np.random.seed(seed)
+def preprocess_interaction_data_part4(data, item_num, split_data, user_history_positive, item_history_positive, item_history_positive_ts, offset=0, neg_num=100, feedback_max_length=10):
 
     def random_neq(l, r, s):
         t = np.random.randint(l, r)
@@ -444,11 +516,12 @@ def preprocess_interaction_data(data, feedback_max_length=10, neg_num=100, hot_i
         hot_item_threshold=hot_item_threshold,
         hot_user_threshold=hot_user_threshold,
     )
+
     train_data, val_data, test_data = preprocess_interaction_data_part2(
         data, data_positive, data_negative, cold_item_ids, cold_user_ids, hot_item_ids, hot_user_ids
     )
     history, history_ts = preprocess_interaction_data_part3(
-        data, user_num, item_num, data_positive, data_negative
+        user_num, item_num, data_positive, data_negative
     )
 
     user_history_positive = history[('user', 'positive')]
@@ -460,9 +533,9 @@ def preprocess_interaction_data(data, feedback_max_length=10, neg_num=100, hot_i
     user_history_negative_ts = history_ts[('user', 'negative')]
     item_history_negative_ts = history_ts[('item', 'negative')]
 
+    np.random.seed(0)
     val_data_neg_items, val_data_neg_item_pos_feedbacks = preprocess_interaction_data_part4(
         data, item_num, val_data, user_history_positive, item_history_positive, item_history_positive_ts,
-        seed=0,
         offset=1,
         neg_num=neg_num,
         feedback_max_length=feedback_max_length,
@@ -499,13 +572,17 @@ def preprocess_interaction_features(ds_name, data):
         _, _, _, interaction_features = data
         interaction_features = interaction_features[['user_id', 'video_id', 'time_ms', 'is_click']]
         interaction_features.columns = ['user_id', 'item_id', 'ts', 'is_click']
-    elif ds_name == 'MovieLens100k':
-        hot_item_threshold = 20
-        hot_user_threshold = 10
+    elif ds_name.startswith('MovieLens'):
+        if ds_name == 'MovieLens100k':
+            hot_item_threshold = 20
+            hot_user_threshold = 10
+        elif ds_name == 'MovieLens1m':
+            hot_item_threshold = 50
+            hot_user_threshold = 10
         click_positive_threshold = 4
         click_negative_threshold = 2
 
-        _, _, _, interaction_features = data
+        _, _, interaction_features = data
         interaction_features = interaction_features[['user_id', 'item_id', 'timestamp', 'rating']]
         interaction_features.columns = ['user_id', 'item_id', 'ts', 'is_click']
 
@@ -517,6 +594,7 @@ def preprocess_interaction_features(ds_name, data):
             else:
                 return -1 # neutral
         interaction_features['is_click'] = interaction_features['is_click'].apply(is_click_threshold)
+
     else:
         raise Exception("Not Implemented")
 
@@ -600,18 +678,18 @@ def preprocess_movielens_item_features(item_features):
     meta = pd.DataFrame(feat_meta)[['name', 'type', 'count']]
     return final, meta
 
-def preprocess_movielens_user_features(user_features, occupations):
+def preprocess_movielens_user_features(user_features):
     columns = []
     feat_meta = [
         {'name': 'user_id', 'type': 'id', 'count': user_features.shape[0]},
         {'name': 'gender', 'type': 'categoric', 'count': 2, 'values': ['M', 'F']},
         {'name': 'age', 'type': 'numeric'},
-        {'name': 'occupation', 'type': 'categoric', 'count': 21, 'values': occupations},
+        {'name': 'occupation', 'type': 'categoric', 'count': 21},
     ]
     for entry in feat_meta:
         ft_name = entry['name']
         columns.append(ft_name)
-        if entry['type'] == 'categoric':
+        if 'values' in entry and entry['type'] == 'categoric':
             user_features[ft_name] = user_features[ft_name].apply(
                 lambda x: entry['values'].index(x)
             )
@@ -622,10 +700,6 @@ def preprocess_movielens_user_features(user_features, occupations):
             user_features[ft_name] = user_features[ft_name].apply(
                 lambda x: x / col_max
             )
-        else:
-            user_features[ft_name] = user_features['occupation'].apply(
-                lambda x: 1 if x == ft_name else 0
-            ).astype(int)
 
     final = user_features[columns]
     final = final.drop(columns='user_id')
@@ -638,8 +712,11 @@ def preprocess_user_features(ds_name, data):
         user_features, _, _, _ = data
         user_features, user_features_meta = preprocess_kuairand_user_features(user_features)
     elif ds_name == 'MovieLens100k':
-        user_features, occupations,  _, _ = data
-        user_features, user_features_meta = preprocess_movielens_user_features(user_features, occupations)
+        user_features, _, _ = data
+        user_features, user_features_meta = preprocess_movielens_user_features(user_features)
+    elif ds_name == 'MovieLens1m':
+        user_features, _, _ = data
+        user_features, user_features_meta = preprocess_movielens_user_features(user_features)
     else:
         raise Exception("Not Implemented")
     return user_features, user_features_meta
@@ -686,7 +763,10 @@ def preprocess_item_features(ds_name, data):
         _, item_features, item_statistic_features, _ = data
         item_features, item_features_meta = preprocess_kuairand_item_features(item_features, item_statistic_features)
     elif ds_name == 'MovieLens100k':
-        _, _, item_features, _ = data
+        _, item_features, _ = data
+        item_features, item_features_meta = preprocess_movielens_item_features(item_features)
+    elif ds_name == 'MovieLens1m':
+        _, item_features, _ = data
         item_features, item_features_meta = preprocess_movielens_item_features(item_features)
     else:
         raise Exception("Not Implemented")
@@ -695,7 +775,11 @@ def preprocess_item_features(ds_name, data):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', default='KuaiRand', choices=['KuaiRand', 'MovieLens100k'])
+    parser.add_argument('--dataset', default='KuaiRand', choices=[
+        'KuaiRand',
+        'MovieLens100k',
+        'MovieLens1m',
+    ])
     parser.add_argument('--interactions', action='store_true', default=False)
     parser.add_argument('--items', action='store_true', default=False)
     parser.add_argument('--users', action='store_true', default=False)
@@ -707,7 +791,7 @@ def parse_args():
 
     return args
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
     data = load_data(args.dataset)
     print('load dataset')
@@ -749,7 +833,6 @@ if __name__ == '__main__':
         ) = preprocess_interaction_features(args.dataset, data)
 
         meta_data.to_csv(os.path.join(args.output_dir, 'meta_data.csv'), index=False)
-
         train_data.to_csv(os.path.join(args.output_dir, 'train_data.csv'), index=False)
         val_data.to_csv(os.path.join(args.output_dir, 'val_data.csv'), index=False)
         test_data.to_csv(os.path.join(args.output_dir, 'test_data.csv'), index=False)
@@ -765,3 +848,5 @@ if __name__ == '__main__':
         pickle.dump(test_data_neg_item_pos_feedbacks, open(os.path.join(args.output_dir, 'test_data_neg_item_pos_feedbacks.pkl'), 'wb'))
 
 
+if __name__ == '__main__':
+    main()
