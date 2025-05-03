@@ -3,6 +3,10 @@ import pickle
 import argparse
 import numpy as np
 import pandas as pd
+from datasets import load_dataset
+
+def decrement_id(x):
+    return x - 1
 
 def load_kuairand():
     _dir = 'KuaiRand'
@@ -20,9 +24,6 @@ def load_kuairand():
     interaction_features = pd.read_csv(interaction_features)
 
     return user_features, item_features, item_statistic_features, interaction_features
-
-def decrement_id(x):
-    return x - 1
 
 def load_movielens100k():
     _dir = 'MovieLens100k'
@@ -99,7 +100,6 @@ def load_movielens1m():
         'occupation',
         'zipcode',
     ]
-    user_features['user_id'] = user_features['user_id'].apply(decrement_id)
 
     item_features = os.path.join(_dir, 'movies.dat')
     encoding = 'iso-8859-1'
@@ -109,7 +109,7 @@ def load_movielens1m():
         'title',
         'genres',
     ]
-    item_features['movie_id'] = item_features['movie_id'].apply(decrement_id)
+
 
     genres = [
         "Action",
@@ -153,8 +153,14 @@ def load_movielens1m():
         'rating',
         'timestamp'
     ]
-    interaction_features['user_id'] = interaction_features['user_id'].apply(decrement_id)
-    interaction_features['item_id'] = interaction_features['item_id'].apply(decrement_id)
+
+    remap_user_id = {v:k for k,v in user_features['user_id'].to_dict().items()}
+    remap_item_id = {v:k for k,v in item_features['movie_id'].to_dict().items()}
+
+    user_features['user_id'] = user_features['user_id'].apply(lambda x: remap_user_id[x])
+    item_features['movie_id'] = item_features['movie_id'].apply(lambda x: remap_item_id[x])
+    interaction_features['user_id'] = interaction_features['user_id'].apply(lambda x: remap_user_id[x])
+    interaction_features['item_id'] = interaction_features['item_id'].apply(lambda x: remap_item_id[x])
 
     return user_features, item_features, interaction_features
 
@@ -185,7 +191,7 @@ def preprocess_kuairand_user_features(user_features):
         {'name': 'user_active_degree', 'type': 'categoric', 'count': 4, 'values': ['full_active', 'high_active', 'middle_active', 'low_active'], 'default': 'low_active'},
         {'name': 'onehot_feat6', 'type': 'categoric', 'count': 3},
         # to embeddings
-        {'name': 'follow_user_num_range', 'type': 'categoric', 'count': 7, 'values': ['0', '(0,10]', '(10,50]', '(50,100]','(100,150]', '(150,250]', '(250,500]', '500+']},
+        {'name': 'follow_user_num_range', 'type': 'categoric', 'count': 8, 'values': ['0', '(0,10]', '(10,50]', '(50,100]','(100,150]', '(150,250]', '(250,500]', '500+']},
         {'name': 'fans_user_num_range', 'type': 'categoric', 'count': 7, 'values': ['0', '[1,10)', '[10,100)', '[100,1k)', '[1k,5k)', '[5k,1w)', '1w+'], 'default': '1w+'},
         {'name': 'friend_user_num_range', 'type': 'categoric', 'count': 7, 'values': ['0', '[1,5)', '[5,30)', '[30,60)', '[60,120)', '[120,250)', '250+']},
         {'name': 'register_days_range', 'type': 'categoric', 'count': 7, 'values': ['-30', '31-60', '61-90', '91-180', '181-365', '366-730', '730+'], 'default': '-30'},
@@ -742,7 +748,7 @@ def flatten_features(features, metadata):
                 new_ft_name = '{}_onehot{}'.format(ft_name, i)
                 onehot_features.append({'name': new_ft_name, 'type': 'onehot'})
                 features.loc[features[ft_name] == i, new_ft_name] = 1
-                features[ft_name] = features[ft_name].fillna(0).astype(int)
+                features[new_ft_name] = features[new_ft_name].fillna(0).astype(int)
         elif ft_type == 'numeric':
             numeric_features.append({'name': ft_name, 'type': 'numeric'})
         elif ft_type == 'categoric':
