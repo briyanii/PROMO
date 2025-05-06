@@ -1,8 +1,12 @@
 import os
+import re
 import pickle
 import argparse
+
+import multiprocessing as mp
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from datasets import load_dataset
 
 def decrement_id(x):
@@ -24,6 +28,73 @@ def load_kuairand():
     interaction_features = pd.read_csv(interaction_features)
 
     return user_features, item_features, item_statistic_features, interaction_features
+
+def load_amazon(subset):
+    review = load_dataset('McAuley-Lab/Amazon-Reviews-2023', f'raw_review_{subset}', trust_remote_code=True, split='full')
+    meta = load_dataset('McAuley-Lab/Amazon-Reviews-2023', f'raw_meta_{subset}', trust_remote_code=True, split='full')
+
+    item_ids = []
+    prices = []
+    has_prices = []
+    rating_numbers = []
+    average_ratings = []
+    for e in tqdm(meta):
+        item_ids.append(e['parent_asin'])
+
+        price = e['price']
+        price_candidates = re.findall('\d+\.*\d*', price)
+        has_price = 1 if len(price_candidates) > 0 else 0
+        price = float(price_candidates[0]) if has_price else 0.0
+
+        prices.append(price)
+        has_prices.append(has_price)
+        rating_numbers.append(e['rating_number'])
+        average_ratings.append(e['average_rating'])
+
+    item_features = pd.DataFrame({
+        'item_id': item_ids,
+        'price': prices,
+        'has_price': has_prices,
+        'rating_number': rating_numbers,
+        'average_rating': average_ratings,
+    })
+
+    user_ids = []
+    item_ids = []
+    timestamps = []
+    ratings = []
+
+    #i = 0
+    for e in tqdm(review):
+        #if i == 10000: break
+        #i += 1
+        user_ids.append(e['user_id'])
+        item_ids.append(e['parent_asin'])
+        timestamps.append(e['timestamp'])
+        ratings.append(e['rating'])
+
+    interaction_features = pd.DataFrame({
+        'item_id': item_ids,
+        'user_id': user_ids,
+        'timestamp': timestamps,
+        'rating': ratings,
+    })
+
+    user_ids = list(set(user_ids))
+    user_features = pd.DataFrame({
+        'user_id': user_ids,
+    })
+
+    remap_user_id = {v:k for k,v in user_features['user_id'].to_dict().items()}
+    remap_item_id = {v:k for k,v in item_features['item_id'].to_dict().items()}
+
+    item_features['item_id'] = item_features['item_id'].apply(lambda x: remap_item_id[x])
+    user_features['user_id'] = user_features['user_id'].apply(lambda x: remap_user_id[x])
+    interaction_features['item_id'] = interaction_features['item_id'].apply(lambda x: remap_item_id[x])
+    interaction_features['user_id'] = interaction_features['user_id'].apply(lambda x: remap_user_id[x])
+
+    return user_features, item_features, interaction_features
+
 
 def load_movielens100k():
     _dir = 'MovieLens100k'
@@ -171,6 +242,10 @@ def load_data(ds_name):
         return load_movielens100k()
     elif ds_name == 'MovieLens1m':
         return load_movielens1m()
+    elif ds_name == 'AmazonGames':
+        return load_amazon('Video_Games')
+    elif ds_name == 'AmazonFashion':
+        return load_amazon('Amazon_Fashion')
     else:
         raise Exception("Not Implemented")
 
@@ -342,6 +417,36 @@ def preprocess_kuairand_item_features(item_features, item_statistic_features):
     meta = pd.DataFrame(meta)[['name', 'type', 'count']]
     return final, meta
 
+def mp_apply_by_group(df, grouping_fn, group_fn):
+    groups = grouping_fn(df)
+    with mp.Pool() as pool:
+        n = len(groups)
+        results = tqdm(pool.imap(group_fn, groups),total=n)
+        results = pd.concat(list(results), axis=0)
+    return results
+
+def p1_positive_behavior_offset_process_group(group):
+    group['positive_behavior_offset'] = group['positive_behavior_offset'].ffill()
+    return group
+
+def p1_item_positive_behavior_offset_process_group(group):
+    group['item_positive_behavior_offset'] = group['item_positive_behavior_offset'].ffill()
+    return group
+
+def p1_item_negative_behavior_offset_process_group(group):
+    group['item_negative_behavior_offset'] = group['item_negative_behavior_offset'].ffill()
+    return group
+
+def p1_group_by_user(df):
+    groups = df.groupby(['user_id'], as_index=False)
+    groups = [g for k,g in groups]
+    return groups
+
+def p1_group_by_item(df):
+    groups = df.groupby(['item_id'], as_index=False)
+    groups = [g for k,g in groups]
+    return groups
+
 def preprocess_interaction_data_part1(data, hot_item_threshold=50, hot_user_threshold=10):
     data_positive = data[data['is_click'] == 1]
     data_negative = data[data['is_click'] == 0]
@@ -373,39 +478,46 @@ def preprocess_interaction_data_part1(data, hot_item_threshold=50, hot_user_thre
     data_negative['item_negative_behavior_offset'] = data_negative.groupby('item_id').cumcount()
     data_negative['item_negative_behavior_offset'] = data_negative.groupby(['item_id', 'ts'])['item_negative_behavior_offset'].transform('min')
 
-
-    data = data.merge(data_positive[['user_id', 'item_id', 'ts', 'positive_behavior_offset', 'item_positive_behavior_offset']], on=['user_id', 'item_id', 'ts'], how='left')
-
-    data = data.sort_values(by=['user_id', 'ts'], ascending=[True, True])
-    def positive_behavior_offset_process_group(group):
-        group['positive_behavior_offset'] = group['positive_behavior_offset'].ffill()
-        return group
-    data = data.groupby(['user_id'], as_index=False).apply(positive_behavior_offset_process_group).reset_index(drop=True)
-    data['positive_behavior_offset'] = data['positive_behavior_offset'].fillna(0)
+    data = data.merge(
+        data_positive[[
+            'user_id', 'item_id', 'ts', 'positive_behavior_offset', 'item_positive_behavior_offset'
+        ]], on=[
+            'user_id', 'item_id', 'ts'
+        ], how='left'
+    ).sort_values(
+        by=['user_id', 'ts'],
+        ascending=[True, True]
+    )
+    data = mp_apply_by_group(data, p1_group_by_user, p1_positive_behavior_offset_process_group)
+    data = data.reset_index(drop=True)
 
     data = data.sort_values(by=['item_id', 'ts'], ascending=[True, True])
-    def item_positive_behavior_offset_process_group(group):
-        group['item_positive_behavior_offset'] = group['item_positive_behavior_offset'].ffill()
-        return group
-    data = data.groupby(['item_id'], as_index=False).apply(item_positive_behavior_offset_process_group).reset_index(drop=True)
-    data['item_positive_behavior_offset'] = data['item_positive_behavior_offset'].fillna(0)
+    data = mp_apply_by_group(data, p1_group_by_item, p1_item_positive_behavior_offset_process_group)
+    data = data.reset_index(drop=True)
 
     data = data.merge(data_negative[['item_id', 'ts', 'item_negative_behavior_offset']], on=['item_id', 'ts'], how='left')
+
     data = data.sort_values(by=['item_id', 'ts'], ascending=[True, True])
-    def item_negative_behavior_offset_process_group(group):
-        group['item_negative_behavior_offset'] = group['item_negative_behavior_offset'].ffill()
-        return group
-    data = data.groupby(['item_id'], as_index=False).apply(item_negative_behavior_offset_process_group).reset_index(drop=True)
-    data['item_negative_behavior_offset'] = data['item_negative_behavior_offset'].fillna(0)
+    data = mp_apply_by_group(data, p1_group_by_item, p1_item_negative_behavior_offset_process_group)
+    data = data.reset_index(drop=True)
 
     data['label'] = (data['is_click'] == 1).astype(int)
 
-    data['cold_item'] = data['item_id'].isin(cold_item_ids).astype(int)
-    data['hot_item'] = data['item_id'].isin(hot_item_ids).astype(int)
-    data['hot_user'] = data['item_id'].isin(hot_user_ids).astype(int)
-    data['cold_user'] = data['item_id'].isin(cold_user_ids).astype(int)
+    _cold_item_ids = set(cold_item_ids)
+    _cold_user_ids = set(cold_user_ids)
+    _hot_item_ids = set(hot_item_ids)
+    _hot_user_ids = set(hot_user_ids)
 
-    data.fillna({'positive_behavior_offset': 0, 'item_positive_behavior_offset': 0, 'item_negative_behavior_offset': 0}, inplace=True)
+    data['cold_item'] = data['item_id'].isin(_cold_item_ids).astype(int)
+    data['cold_user'] = data['user_id'].isin(_cold_user_ids).astype(int)
+    data['hot_item'] = data['item_id'].isin(_hot_item_ids).astype(int)
+    data['hot_user'] = data['user_id'].isin(_hot_user_ids).astype(int)
+
+    data = data.fillna({
+        'positive_behavior_offset': 0,
+        'item_positive_behavior_offset': 0,
+        'item_negative_behavior_offset': 0
+    })
 
     data['user_id'] = data['user_id'].astype(int)
     data['item_id'] = data['item_id'].astype(int)
@@ -415,35 +527,54 @@ def preprocess_interaction_data_part1(data, hot_item_threshold=50, hot_user_thre
 
     return data, user_num, item_num, data_positive, data_negative, cold_item_ids, cold_user_ids, hot_item_ids, hot_user_ids
 
-def preprocess_interaction_data_part2(data, data_positive, data_negative, cold_item_ids, cold_user_ids, hot_item_ids, hot_user_ids):
+def p2_get_second_to_last_row(group):
+    if len(group) >= 2:
+        return group.iloc[-2]
+    else:
+        return None
+
+def p2_get_last_row(group):
+    if len(group) >= 1:
+        return group.iloc[-1]
+    else:
+        return None
+
+def p2_group_by_user(df):
+    groups = df.groupby('user_id')
+    groups = [g for k,g in groups]
+    return groups
+
+def preprocess_interaction_data_part2(data, data_positive, data_negative, hot_user_ids):
     '''
     train, val, test splits
     [train_0, ..., train_n, val, test]
     '''
-    def get_second_to_last_row(group):
-        if len(group) >= 2:
-            return group.iloc[-2]
-        else:
-            return None
-
-    def get_last_row(group):
-        if len(group) >= 1:
-            return group.iloc[-1]
-        else:
-            return None
+    _hot_user_ids = set(hot_user_ids)
 
     tmp_data = data[data['label'] == 1].sort_values(by=['user_id', 'ts'], ascending=[True, True])
-    val_data = tmp_data.groupby('user_id').apply(get_second_to_last_row)
-    val_data = val_data.dropna()
-    test_data = tmp_data.groupby('user_id').apply(get_last_row)
-    test_data = test_data.dropna()
-    merged_data = pd.concat([data, val_data, test_data])
-    train_data = merged_data.drop_duplicates(keep=False)
-    train_data = train_data.sort_values(by=['user_id', 'ts'], ascending=[True, True])
 
-    train_data = train_data[train_data['positive_behavior_offset'] >= 3]
-    val_data = val_data[val_data['user_id'].isin(hot_user_ids)]
-    test_data = test_data[test_data['user_id'].isin(hot_user_ids)]
+    val_data = tmp_data.groupby('user_id').apply(p2_get_second_to_last_row).dropna()
+    #val_data = mp_apply_by_group(tmp_data, p2_group_by_user, p2_get_second_to_last_row).dropna()
+
+    test_data = tmp_data.groupby('user_id').apply(p2_get_last_row).dropna()
+    #test_data = mp_apply_by_group(tmp_data, p2_group_by_user, p2_get_last_row).dropna()
+
+    del tmp_data
+    merged_data = pd.concat([data, val_data, test_data])
+
+    train_data = merged_data.drop_duplicates(
+        keep=False
+    ).sort_values(
+        by=['user_id', 'ts'],
+        ascending=[True, True]
+    ).query('positive_behavior_offset >= 3')
+    del merged_data
+    print('train')
+
+    val_data = val_data.query('user_id in @_hot_user_ids')
+    print('val')
+    test_data = test_data.query('user_id in @_hot_user_ids')
+    print('test')
 
     return train_data, val_data, test_data
 
@@ -457,13 +588,14 @@ def preprocess_interaction_data_part3(user_num, item_num, data_positive, data_ne
         for pos_neg in ['positive', 'negative']:
             val_id = "{}_id".format(val)
             oth_id = "{}_id".format(other)
+            print(val, pos_neg)
             if pos_neg == 'positive':
                 data = data_positive.sort_values(by=[val_id, 'ts'], ascending=[True, True])
             else:
                 data = data_negative.sort_values(by=[val_id, 'ts'], ascending=[True, True])
             val_history = data.groupby(val_id)[oth_id].apply(list).to_dict()
             val_history_ts = data.groupby(val_id)['ts'].apply(list).to_dict()
-            for i in range(val_num):
+            for i in tqdm(range(val_num)):
                 if i not in val_history:
                     val_history[i] = []
                     val_history_ts[i] = []
@@ -496,7 +628,7 @@ def preprocess_interaction_data_part4(data, item_num, split_data, user_history_p
 
     data_neg_items = []
     data_neg_item_pos_feedbacks = []
-    for idx in range(len(split_data)):
+    for idx in tqdm(range(len(split_data))):
         user_id = int(split_data.iloc[idx]['user_id'])
         ts = int(split_data.iloc[idx]['ts'])
         neg_item_ids = []
@@ -517,19 +649,21 @@ def preprocess_interaction_data_part4(data, item_num, split_data, user_history_p
     return data_neg_items, data_neg_item_pos_feedbacks
 
 def preprocess_interaction_data(data, feedback_max_length=10, neg_num=100, hot_item_threshold=50, hot_user_threshold=10):
+    print('part1')
     data, user_num, item_num, data_positive, data_negative, cold_item_ids, cold_user_ids, hot_item_ids, hot_user_ids = preprocess_interaction_data_part1(
         data,
         hot_item_threshold=hot_item_threshold,
         hot_user_threshold=hot_user_threshold,
     )
 
+    print('part2')
     train_data, val_data, test_data = preprocess_interaction_data_part2(
-        data, data_positive, data_negative, cold_item_ids, cold_user_ids, hot_item_ids, hot_user_ids
+        data, data_positive, data_negative, hot_user_ids
     )
+    print('part3')
     history, history_ts = preprocess_interaction_data_part3(
         user_num, item_num, data_positive, data_negative
     )
-
     user_history_positive = history[('user', 'positive')]
     item_history_positive = history[('item', 'positive')]
     user_history_negative = history[('user', 'negative')]
@@ -540,6 +674,7 @@ def preprocess_interaction_data(data, feedback_max_length=10, neg_num=100, hot_i
     item_history_negative_ts = history_ts[('item', 'negative')]
 
     np.random.seed(0)
+    print('part4')
     val_data_neg_items, val_data_neg_item_pos_feedbacks = preprocess_interaction_data_part4(
         data, item_num, val_data, user_history_positive, item_history_positive, item_history_positive_ts,
         offset=1,
@@ -592,6 +727,23 @@ def preprocess_interaction_features(ds_name, data):
         interaction_features = interaction_features[['user_id', 'item_id', 'timestamp', 'rating']]
         interaction_features.columns = ['user_id', 'item_id', 'ts', 'is_click']
 
+        def is_click_threshold(x):
+            if x <= click_negative_threshold:
+                return 0 # negative
+            elif x >= click_positive_threshold:
+                return 1 # positive
+            else:
+                return -1 # neutral
+        interaction_features['is_click'] = interaction_features['is_click'].apply(is_click_threshold)
+    elif ds_name.startswith('Amazon'):
+        hot_item_threshold = 50
+        hot_user_threshold = 10
+        click_positive_threshold = 4
+        click_negative_threshold = 2
+
+        _, _, interaction_features = data
+        interaction_features = interaction_features[['user_id', 'item_id', 'timestamp', 'rating']]
+        interaction_features.columns = ['user_id', 'item_id', 'ts', 'is_click']
         def is_click_threshold(x):
             if x <= click_negative_threshold:
                 return 0 # negative
@@ -713,16 +865,48 @@ def preprocess_movielens_user_features(user_features):
     meta = pd.DataFrame(feat_meta)[['name', 'type', 'count']]
     return final, meta
 
+def preprocess_amazon_item_features(item_features):
+    columns = []
+    feat_meta = [
+        {'name': 'item_id', 'type': 'id', 'count': item_features.shape[0]},
+        {'name': 'price', 'type': 'numeric'},
+        {'name': 'has_price', 'type': 'binary'},
+        {'name': 'rating_number', 'type': 'numeric'},
+        {'name': 'average_rating', 'type': 'numeric'},
+    ]
+    for entry in feat_meta:
+        columns.append(entry['name'])
+
+    item_features['rating_number'] = item_features['rating_number'].fillna(0)
+    item_features['average_rating'] = item_features['average_rating'].fillna(0)
+
+    final = item_features[columns]
+    meta = pd.DataFrame(feat_meta)[['name', 'type', 'count']]
+    return final, meta
+
+def preprocess_amazon_user_features(user_features):
+    columns = [
+        'dummy_ft'
+    ]
+    feat_meta = [
+        {'name': 'user_id', 'type': 'id', 'count': user_features.shape[0]},
+        {'name': 'dummy_ft', 'type': 'binary'},
+    ]
+    user_features['dummy_ft'] = 1
+    final = user_features[columns]
+    meta = pd.DataFrame(feat_meta)[['name', 'type', 'count']]
+    return final, meta
+
 def preprocess_user_features(ds_name, data):
     if ds_name == 'KuaiRand':
         user_features, _, _, _ = data
         user_features, user_features_meta = preprocess_kuairand_user_features(user_features)
-    elif ds_name == 'MovieLens100k':
+    elif ds_name.startswith('MovieLens'):
         user_features, _, _ = data
         user_features, user_features_meta = preprocess_movielens_user_features(user_features)
-    elif ds_name == 'MovieLens1m':
+    elif ds_name.startswith('Amazon'):
         user_features, _, _ = data
-        user_features, user_features_meta = preprocess_movielens_user_features(user_features)
+        user_features, user_features_meta = preprocess_amazon_user_features(user_features)
     else:
         raise Exception("Not Implemented")
     return user_features, user_features_meta
@@ -768,12 +952,12 @@ def preprocess_item_features(ds_name, data):
     if ds_name == 'KuaiRand':
         _, item_features, item_statistic_features, _ = data
         item_features, item_features_meta = preprocess_kuairand_item_features(item_features, item_statistic_features)
-    elif ds_name == 'MovieLens100k':
+    elif ds_name.startswith('MovieLens'):
         _, item_features, _ = data
         item_features, item_features_meta = preprocess_movielens_item_features(item_features)
-    elif ds_name == 'MovieLens1m':
+    elif ds_name.startswith('Amazon'):
         _, item_features, _ = data
-        item_features, item_features_meta = preprocess_movielens_item_features(item_features)
+        item_features, item_features_meta = preprocess_amazon_item_features(item_features)
     else:
         raise Exception("Not Implemented")
 
@@ -785,6 +969,8 @@ def parse_args():
         'KuaiRand',
         'MovieLens100k',
         'MovieLens1m',
+        'AmazonGames',
+        'AmazonFashion',
     ])
     parser.add_argument('--interactions', action='store_true', default=False)
     parser.add_argument('--items', action='store_true', default=False)
@@ -806,18 +992,18 @@ def main():
         print('preprocess item features')
         item_features, item_features_meta = preprocess_item_features(args.dataset, data)
         item_features, item_features_meta = flatten_features(item_features, item_features_meta)
-        #print(item_features)
+        print(item_features)
         item_features.to_csv(os.path.join(args.output_dir, 'item_features.csv'), index=False)
-        #print(item_features_meta)
+        print(item_features_meta)
         item_features_meta.to_csv(os.path.join(args.output_dir, 'item_features_meta.csv'), index=False)
 
     if args.users:
         print('preprocess user features')
         user_features, user_features_meta = preprocess_user_features(args.dataset, data)
         user_features, user_features_meta = flatten_features(user_features, user_features_meta)
-        #print(user_features)
+        print(user_features)
         user_features.to_csv(os.path.join(args.output_dir, 'user_features.csv'), index=False)
-        #print(user_features_meta)
+        print(user_features_meta)
         user_features_meta.to_csv(os.path.join(args.output_dir, 'user_features_meta.csv'), index=False)
 
     if args.interactions:
@@ -852,6 +1038,8 @@ def main():
         pickle.dump(val_data_neg_item_pos_feedbacks, open(os.path.join(args.output_dir, 'val_data_neg_item_pos_feedbacks.pkl'), 'wb'))
         pickle.dump(test_data_neg_items, open(os.path.join(args.output_dir, 'test_data_neg_items.pkl'), 'wb'))
         pickle.dump(test_data_neg_item_pos_feedbacks, open(os.path.join(args.output_dir, 'test_data_neg_item_pos_feedbacks.pkl'), 'wb'))
+
+    print('Done')
 
 
 if __name__ == '__main__':
