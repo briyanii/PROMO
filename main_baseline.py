@@ -71,9 +71,10 @@ if __name__ == '__main__':
                              'item_feature': item_features_dim, 'user_feature': user_features_dim},
               'device': args.device,
               'maxlen': args.maxlen}
-    dataset_meta_data = json.load(open(os.path.join('data', 'dataset_meta_data.json'), 'r'))
-    config['item_feature'] = dataset_meta_data[args.dataset]['item_feature']
-    config['user_feature'] = dataset_meta_data[args.dataset]['user_feature']
+
+    #dataset_meta_data = json.load(open(os.path.join('data', 'dataset_meta_data.json'), 'r'))
+    #config['item_feature'] = dataset_meta_data[args.dataset]['item_feature']
+    #config['user_feature'] = dataset_meta_data[args.dataset]['user_feature']
 
     item_features_meta = dataset_train.item_features_meta.to_dict(orient='records')
     config['item_features'] = item_features_meta
